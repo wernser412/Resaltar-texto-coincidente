@@ -2,6 +2,8 @@
 
 **Última Actualización:** 28 de Noviembre de 2024
 
+![Interfaz Gráfica del Script](GUI.png)
+
 Un script de Tampermonkey que permite resaltar palabras específicas en rojo en el sitio web [hentaitk.net](https://hentaitk.net). Los usuarios pueden gestionar las palabras a resaltar a través de un cuadro de texto interactivo, que guarda las palabras ingresadas para futuras visitas.
 
 ## Características
