@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Resaltar texto coincidente
 // @namespace    http://tampermonkey.net/
-// @version      1.5
+// @version      1.6
 // @description  Resalta en rojo palabras específicas en hentaitk.net con un botón para ingresar palabras, incluyendo hipervínculos
 // @author       wernser412
 // @match        *://hentaitk.net/*
@@ -14,24 +14,44 @@
     // Recuperar palabras guardadas o inicializar como un array vacío
     let palabrasGuardadas = JSON.parse(localStorage.getItem('palabrasResaltadas')) || [];
 
+    // Crear un contenedor para el botón
+    const buttonContainer = document.createElement('div');
+    buttonContainer.id = 'highlight-button-container';
+    buttonContainer.style.position = 'fixed';
+    buttonContainer.style.top = '10px';
+    buttonContainer.style.right = '10px';
+    buttonContainer.style.zIndex = '1000';
+    buttonContainer.style.backgroundColor = '#f9f9f9';
+    buttonContainer.style.padding = '5px';
+    buttonContainer.style.borderRadius = '8px';
+    buttonContainer.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+    buttonContainer.style.cursor = 'move';
+    buttonContainer.style.width = '160px';  // Ancho fijo
+    buttonContainer.style.height = '50px';  // Alto fijo
+    buttonContainer.style.display = 'flex';  // Usar Flexbox para centrar el contenido
+    buttonContainer.style.justifyContent = 'center';  // Centrar horizontalmente
+    buttonContainer.style.alignItems = 'center';  // Centrar verticalmente
+
     // Crear un botón para ingresar palabras
-    let boton = document.createElement('button');
+    const boton = document.createElement('button');
     boton.textContent = 'Ingresar palabras';
-    boton.style.position = 'fixed';
-    boton.style.top = '10px';
-    boton.style.right = '10px';
-    boton.style.zIndex = '1000';
+    boton.style.cursor = 'pointer';
     boton.style.padding = '10px';
-    boton.style.backgroundColor = '#007BFF';
-    boton.style.color = 'white';
     boton.style.border = 'none';
     boton.style.borderRadius = '5px';
-    boton.style.cursor = 'pointer';
+    boton.style.backgroundColor = '#4CAF50'; // Verde
+    boton.style.color = 'white';
+    boton.style.fontSize = '14px';
+    boton.style.width = '150px'; // Ancho fijo
+    boton.style.textAlign = 'center'; // Centrar el texto
 
-    document.body.appendChild(boton);
+    boton.onclick = () => modal.style.display = 'block';
+
+    buttonContainer.appendChild(boton);
+    document.body.appendChild(buttonContainer);
 
     // Crear un contenedor modal para el textarea
-    let modal = document.createElement('div');
+    const modal = document.createElement('div');
     modal.style.position = 'fixed';
     modal.style.top = '50%';
     modal.style.left = '50%';
@@ -43,52 +63,44 @@
     modal.style.zIndex = '1001';
     modal.style.display = 'none';
 
-    let textarea = document.createElement('textarea');
+    const textarea = document.createElement('textarea');
     textarea.style.width = '300px';
     textarea.style.height = '200px';
     textarea.style.resize = 'none';
     textarea.placeholder = 'Ingrese las palabras, una por línea...';
     textarea.value = palabrasGuardadas.join('\n');
 
-    let guardarBoton = document.createElement('button');
+    const guardarBoton = document.createElement('button');
     guardarBoton.textContent = 'Guardar';
     guardarBoton.style.marginTop = '10px';
     guardarBoton.style.padding = '10px';
-    guardarBoton.style.backgroundColor = '#007BFF';
+    guardarBoton.style.backgroundColor = '#4CAF50'; // Verde
     guardarBoton.style.color = 'white';
     guardarBoton.style.border = 'none';
     guardarBoton.style.borderRadius = '5px';
     guardarBoton.style.cursor = 'pointer';
+    guardarBoton.onclick = () => {
+        palabrasGuardadas = textarea.value.split('\n').map(p => p.trim()).filter(Boolean);
+        localStorage.setItem('palabrasResaltadas', JSON.stringify(palabrasGuardadas));
+        resaltarTexto(document.body, palabrasGuardadas);
+        modal.style.display = 'none';
+    };
 
-    let cerrarBoton = document.createElement('button');
+    const cerrarBoton = document.createElement('button');
     cerrarBoton.textContent = 'Cerrar';
     cerrarBoton.style.marginLeft = '10px';
     cerrarBoton.style.padding = '10px';
-    cerrarBoton.style.backgroundColor = '#DC3545';
+    cerrarBoton.style.backgroundColor = '#DC3545'; // Rojo
     cerrarBoton.style.color = 'white';
     cerrarBoton.style.border = 'none';
     cerrarBoton.style.borderRadius = '5px';
     cerrarBoton.style.cursor = 'pointer';
+    cerrarBoton.onclick = () => modal.style.display = 'none';
 
     modal.appendChild(textarea);
     modal.appendChild(guardarBoton);
     modal.appendChild(cerrarBoton);
     document.body.appendChild(modal);
-
-    boton.addEventListener('click', () => {
-        modal.style.display = 'block';
-    });
-
-    cerrarBoton.addEventListener('click', () => {
-        modal.style.display = 'none';
-    });
-
-    guardarBoton.addEventListener('click', () => {
-        palabrasGuardadas = textarea.value.split('\n').map(p => p.trim()).filter(Boolean);
-        localStorage.setItem('palabrasResaltadas', JSON.stringify(palabrasGuardadas));
-        resaltarTexto(document.body, palabrasGuardadas);
-        modal.style.display = 'none';
-    });
 
     // Función para envolver las palabras coincidentes en un span con estilo
     function resaltarTexto(nodo, palabras) {
@@ -110,5 +122,48 @@
     // Resaltar automáticamente al cargar la página si hay palabras guardadas
     if (palabrasGuardadas.length > 0) {
         resaltarTexto(document.body, palabrasGuardadas);
+    }
+
+    // Hacer el contenedor arrastrable
+    makeDraggable(buttonContainer);
+
+    function makeDraggable(element) {
+        let posX = 0, posY = 0, initialX = 0, initialY = 0;
+
+        element.onmousedown = function (event) {
+            event.preventDefault();
+            initialX = event.clientX;
+            initialY = event.clientY;
+
+            document.onmousemove = function (event) {
+                event.preventDefault();
+
+                posX = initialX - event.clientX;
+                posY = initialY - event.clientY;
+                initialX = event.clientX;
+                initialY = event.clientY;
+
+                element.style.top = (element.offsetTop - posY) + "px";
+                element.style.left = (element.offsetLeft - posX) + "px";
+            };
+
+            document.onmouseup = function () {
+                document.onmousemove = null;
+                document.onmouseup = null;
+
+                // Guardar la posición final del botón en almacenamiento local
+                localStorage.setItem('buttonPosition', JSON.stringify({
+                    top: element.style.top,
+                    left: element.style.left
+                }));
+            };
+        };
+
+        // Restaurar posición guardada al recargar la página
+        const savedPosition = JSON.parse(localStorage.getItem('buttonPosition'));
+        if (savedPosition) {
+            element.style.top = savedPosition.top;
+            element.style.left = savedPosition.left;
+        }
     }
 })();
