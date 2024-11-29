@@ -4,6 +4,7 @@
 // @version      1.6
 // @description  Resalta en rojo palabras específicas en hentaitk.net con un botón para ingresar palabras, incluyendo hipervínculos
 // @author       wernser412
+// @icon         https://raw.githubusercontent.com/wernser412/Resaltar-texto-coincidente/refs/heads/main/icono.png
 // @match        *://hentaitk.net/*
 // @grant        none
 // ==/UserScript==
