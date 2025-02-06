@@ -5,6 +5,7 @@
 // @description  Resalta palabras específicas en hentaitk.net con menú en Tampermonkey sin congelar la página.
 // @author       wernser412
 // @icon         https://raw.githubusercontent.com/wernser412/Resaltar-texto-coincidente/refs/heads/main/icono.png
+// @downloadURL  https://github.com/wernser412/Resaltar-texto-coincidente/raw/refs/heads/main/Resaltar%20texto%20coincidente.user.js
 // @match        *://hentaitk.net/*
 // @grant        GM_registerMenuCommand
 // ==/UserScript==
