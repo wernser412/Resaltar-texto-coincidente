@@ -1,4 +1,4 @@
-# Resaltar Texto Coincidente
+# 🖍️ Resaltar Texto Coincidente
 
 **Última Actualización:** 06 de Febrero de 2024
 
