@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Resaltar texto coincidente
 // @namespace    http://tampermonkey.net/
-// @version      2.0
+// @version      2.1
 // @description  Resalta palabras específicas en hentaitk.net con menú en Tampermonkey sin congelar la página.
 // @author       wernser412
 // @match        *://hentaitk.net/*
@@ -17,7 +17,7 @@
         if (node.nodeType !== 3 || !palabrasGuardadas.length) return;
 
         let texto = node.nodeValue;
-        let regex = new RegExp(`\\b(${palabrasGuardadas.map(word => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`, 'gi');
+        let regex = new RegExp(`\\b(${palabrasGuardadas.map(word => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
 
         if (regex.test(texto)) {
             let fragment = document.createDocumentFragment();
