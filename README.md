@@ -16,12 +16,11 @@ Un script de Tampermonkey que permite resaltar palabras específicas en rojo en 
 
 ## 🚀 Instalación
 
-1. Instala la extensión **[Tampermonkey](https://www.tampermonkey.net/)** en tu navegador (compatible con Chrome, Firefox, Edge, y otros).
-2. Abre Tampermonkey y selecciona la opción **"Crear un nuevo script"**.
-3. Copia y pega el contenido del archivo [`script.js`](https://github.com/wernser412/Resaltar-texto-coincidente/raw/refs/heads/main/Resaltar%20texto%20coincidente.user.js) en el editor de Tampermonkey.
-4. Guarda el script y asegúrate de que esté habilitado.
-5. Ve a [hentaitk.net](https://hentaitk.net) y haz clic en el botón "Ingresar palabras" para comenzar.
+1. Instala la extensión [Tampermonkey](https://www.tampermonkey.net/) para tu navegador.
+2. Abre este script desde GitHub y haz clic en `Raw`.
+3. Tampermonkey lo detectará y ofrecerá instalarlo.
 
+> También puedes hacer click en [`userscript.js`](https://github.com/wernser412/Resaltar-texto-coincidente/raw/refs/heads/main/Resaltar%20texto%20coincidente.user.js) para instalar automaticamente en Tampermonkey.
 
 ## 🛠️ Configuración
 
