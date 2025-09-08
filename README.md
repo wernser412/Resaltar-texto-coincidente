@@ -1,6 +1,6 @@
 # 🖍️ Resaltar Texto Coincidente
 
-**Última Actualización:** 25 de mayo de 2025
+**Última Actualización:** 08 de septiembre de 2025
 
 ![Interfaz Gráfica del Script](GUI.png)
 
