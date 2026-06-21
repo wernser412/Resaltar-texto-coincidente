@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Resaltar texto coincidente
 // @namespace    http://tampermonkey.net/
-// @version      2026.05.26
+// @version      2026.06.20
 // @description  Resalta palabras con menú flotante moderno
 // @author       wernser412
 // @icon         https://raw.githubusercontent.com/wernser412/Resaltar-texto-coincidente/refs/heads/main/ICONO.png
@@ -63,15 +63,18 @@ function resaltarTexto(node) {
     const texto =
         node.nodeValue;
 
-    const regex =
-        new RegExp(
+    const regex = new RegExp(
 
-            `\\b(${config.palabras
-                .map(escapeRegExp)
-                .join('|')})`,
+    `\\b(${
+        config.palabras
+            .slice()
+            .sort((a, b) => b.length - a.length)
+            .map(escapeRegExp)
+            .join('|')
+    })\\b`,
 
-            'gi'
-        );
+    'gi'
+);
 
     if (!regex.test(texto))
         return;
