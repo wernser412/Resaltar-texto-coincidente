@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Resaltar texto coincidente
 // @namespace    http://tampermonkey.net/
-// @version      2026.06.20
+// @version      2026.06.28
 // @description  Resalta palabras con menú flotante moderno
 // @author       wernser412
 // @icon         https://raw.githubusercontent.com/wernser412/Resaltar-texto-coincidente/refs/heads/main/ICONO.png
@@ -64,17 +64,15 @@ function resaltarTexto(node) {
         node.nodeValue;
 
     const regex = new RegExp(
-
-    `\\b(${
+    `(?<![\\p{L}\\p{N}])(${
         config.palabras
             .slice()
             .sort((a, b) => b.length - a.length)
             .map(escapeRegExp)
             .join('|')
-    })\\b`,
-
-    'gi'
-);
+    })(?![\\p{L}\\p{N}])`,
+    'giu'
+    );
 
     if (!regex.test(texto))
         return;
@@ -138,7 +136,6 @@ function recorrerNodos(node) {
         ].includes(node.nodeName)
 
     ) {
-
         node.childNodes.forEach(
             recorrerNodos
         );
@@ -173,16 +170,13 @@ function refresh() {
 new MutationObserver(muts => {
 
     muts.forEach(m => {
-
         m.addedNodes.forEach(
             recorrerNodos
         );
     });
 
 }).observe(document.body, {
-
     childList: true,
-
     subtree: true
 });
 
@@ -199,13 +193,10 @@ function showOverlay(text) {
 
         overlay.style.cssText = `
             position:fixed;
-
             top:50%;
             left:50%;
-
             transform:
                 translate(-50%,-50%);
-
             z-index:999999;
         `;
 
@@ -214,20 +205,13 @@ function showOverlay(text) {
 
         box.style.cssText = `
             width:420px;
-
             background:#0b1220;
-
             color:#fff;
-
             border:4px solid #4fc3ff;
-
             border-radius:20px;
-
             padding:20px;
-
             font-size:20px;
             font-weight:bold;
-
             text-align:center;
         `;
 
@@ -276,7 +260,7 @@ async function guardar() {
     refresh();
 
     updateHighlightStyle();
-
+    
     showOverlay(
         "💾 Guardado"
     );
@@ -302,7 +286,6 @@ async function exportar() {
         );
 
     GM_download({
-
         url:
             URL.createObjectURL(
                 blob
@@ -351,7 +334,6 @@ function importar() {
                 await file.text();
 
             try {
-
                 const data =
                     JSON.parse(text);
 
@@ -372,9 +354,7 @@ function importar() {
                     data;
 
                 await GM_setValue(
-
                     "resaltarConfig",
-
                     JSON.stringify(config)
                 );
 
@@ -387,9 +367,9 @@ function importar() {
                     config.color;
 
                 refresh();
-
+                
                 updateHighlightStyle();
-
+                
                 showOverlay(
                     "📥 Importado"
                 );
@@ -422,9 +402,7 @@ function toggleMenu() {
     rhPanel.style.display =
 
         rhPanel.style.display === "flex"
-
             ? "none"
-
             : "flex";
 }
 
@@ -442,7 +420,6 @@ async function applyFloatingMenuVisibility() {
             : "none";
 
     if (!visible) {
-
         rhPanel.style.display =
             "none";
     }
@@ -476,28 +453,17 @@ async function createFloatingMenu() {
 
     rhPanel.style.cssText = `
         position:fixed;
-
         right:20px;
         bottom:90px;
-
         width:420px;
-
         background:#0f172a;
-
         border:2px solid #334155;
-
         border-radius:18px;
-
         padding:16px;
-
         display:none;
-
         flex-direction:column;
-
         gap:12px;
-
         z-index:999999;
-
         box-shadow:
             0 10px 30px rgba(0,0,0,.45);
     `;
@@ -543,15 +509,10 @@ async function createFloatingMenu() {
 
     colorInput.style.cssText = `
         width:100%;
-
         height:50px;
-
         border:none;
-
         border-radius:10px;
-
         cursor:pointer;
-
         background:none;
     `;
 
@@ -576,25 +537,15 @@ async function createFloatingMenu() {
 
     textarea.style.cssText = `
         width:100%;
-
         height:220px;
-
         background:#111827;
-
         color:white;
-
         border:1px solid #334155;
-
         border-radius:12px;
-
         padding:12px;
-
         resize:vertical;
-
         font-size:14px;
-
         font-family:monospace;
-
         box-sizing:border-box;
     `;
 
@@ -611,9 +562,7 @@ async function createFloatingMenu() {
 
     buttonContainer.style.cssText = `
         display:flex;
-
         flex-direction:column;
-
         gap:10px;
     `;
 
@@ -640,21 +589,13 @@ async function createFloatingMenu() {
 
         btn.style.cssText = `
             width:100%;
-
             border:none;
-
             border-radius:12px;
-
             padding:12px;
-
             background:${color};
-
             color:white;
-
             font-size:14px;
-
             font-weight:600;
-
             cursor:pointer;
         `;
 
@@ -696,29 +637,18 @@ async function createFloatingMenu() {
 
     rhFab.style.cssText = `
         position:fixed;
-
         right:20px;
         bottom:20px;
-
         width:60px;
         height:60px;
-
         border:none;
-
         border-radius:50%;
-
         background:#ff006e;
-
         color:white;
-
         font-size:28px;
-
         font-weight:bold;
-
         cursor:pointer;
-
         z-index:999999;
-
         box-shadow:
             0 4px 12px rgba(0,0,0,.4);
     `;
@@ -738,7 +668,6 @@ async function createFloatingMenu() {
 let styleTag;
 
 function updateHighlightStyle() {
-
     styleTag?.remove();
 
     styleTag =
@@ -748,14 +677,10 @@ function updateHighlightStyle() {
 
     styleTag.textContent = `
         .rh-highlight{
-
             color:${config.color} !important;
-
             font-weight:bold !important;
-
             text-shadow:
-                0 0 8px ${config.color};
-
+                 0 0 8px ${config.color};
             border-radius:4px;
         }
     `;
@@ -766,11 +691,8 @@ function updateHighlightStyle() {
 }
 
 GM_addStyle(`
-
 ::selection{
-
     background:#ff006e;
-
     color:white;
 }
 
@@ -781,11 +703,8 @@ GM_addStyle(`
 window.addEventListener(
     "load",
     async () => {
-
         updateHighlightStyle();
-
         refresh();
-
         createFloatingMenu();
     }
 );
@@ -793,9 +712,7 @@ window.addEventListener(
 /* ============================ MENU */
 
 GM_registerMenuCommand(
-
     "☰ Mostrar/Ocultar botón flotante",
-
     toggleFloatingMenuVisibility
 );
 
