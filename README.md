@@ -1,42 +1,116 @@
-# ✨ Resaltar texto coincidente
+# Resaltar texto coincidente
+
 **Última Actualización:** 14 de julio de 2026
 
-Resalta automáticamente palabras o frases específicas en las páginas web mediante un menú flotante moderno. Cada sitio web mantiene su propia lista de palabras y color de resaltado.
+Resalta automáticamente palabras o expresiones en cualquier página compatible mediante listas personalizadas, con un menú flotante moderno, selección de color e importación/exportación de configuraciones.
 
 ![GUI](GUI.png)
 
-## Características
+## 📖 Descripción
 
-- ✨ Resaltado automático de palabras o frases.
-- 🌐 Configuración independiente para cada dominio.
-- 🎨 Color de resaltado totalmente personalizable.
-- 🟣 Colores predefinidos para elegir rápidamente.
-- 📥 Importación de configuraciones desde archivos JSON.
-- 📤 Exportación de la configuración del sitio actual.
-- 📦 Exportación de todas las configuraciones guardadas.
-- 💾 Guardado automático por sitio.
-- 📏 Área de edición redimensionable y con tamaño persistente.
-- 🖱️ Menú flotante moderno que puede mostrarse u ocultarse desde el menú de Tampermonkey.
-- ⚡ Optimizado para páginas dinámicas mediante `MutationObserver`.
-- 🔄 Reaplica el resaltado al volver a una pestaña en segundo plano.
+**Resaltar texto coincidente** es un UserScript para **Tampermonkey** que permite resaltar automáticamente palabras o frases dentro de las páginas web.
 
-## Uso
+Cada sitio web mantiene su propia lista de palabras y su propio color de resaltado, permitiendo personalizar el contenido visualizado sin modificar la página original.
 
-1. Haz clic en el botón flotante **☰**.
-2. Escribe una palabra o frase por línea.
-3. Selecciona el color del resaltado.
-4. Pulsa **💾 Guardar**.
+El script también incorpora herramientas para importar, exportar y administrar fácilmente todas las configuraciones desde un panel flotante moderno.
 
-A partir de ese momento todas las coincidencias aparecerán resaltadas automáticamente en ese sitio web.
+---
 
-## Compatibilidad
+# 📥 Instalación
 
-Compatible con cualquier navegador que soporte:
+1. Instala la extensión **Tampermonkey** para tu navegador.
 
-- Tampermonkey
-- Violentmonkey
-- Greasemonkey
+2. Instala el script desde GitHub:
 
-## Licencia
+**➡️ [Instalar Script](https://github.com/wernser412/Resaltar-texto-coincidente/raw/refs/heads/main/Resaltar%20texto%20coincidente.user.js)**
 
-MIT
+---
+
+# ✨ Características
+
+- ✨ Resaltado automático de palabras.
+- 🌐 Configuración independiente para cada sitio web.
+- 🎨 Color de resaltado personalizable.
+- 🎯 Selector visual de color con colores predefinidos.
+- ⚡ Procesamiento automático del contenido cargado dinámicamente.
+- 🔄 Reaplicación automática del resaltado al volver a la pestaña.
+- 🎨 Panel flotante moderno.
+- 📝 Editor integrado para administrar palabras.
+- 📏 Área de edición redimensionable.
+- 💾 Guarda automáticamente la configuración por dominio.
+- 📥 Importar configuraciones desde archivos JSON.
+- 📤 Exportar la configuración del sitio actual.
+- 📦 Exportar todas las configuraciones de todos los sitios.
+- 📊 Contador de palabras configuradas.
+- 🔔 Mensajes visuales para confirmar las acciones.
+- ⌨️ Cierre rápido del panel con la tecla **Esc**.
+
+---
+
+# 📝 Lista de palabras
+
+Cada palabra debe escribirse en una línea independiente.
+
+Ejemplo:
+
+```text
+gato
+perro
+matemáticas
+historia
+```
+
+El script resaltará automáticamente todas las coincidencias encontradas en la página.
+
+---
+
+# 🖥️ Uso
+
+1. Abre una página compatible.
+2. Pulsa el botón flotante ☰.
+3. Escribe las palabras que deseas resaltar.
+4. Selecciona el color de resaltado.
+5. Guarda los cambios.
+6. Las palabras aparecerán resaltadas automáticamente.
+
+---
+
+# 💾 Información almacenada
+
+El script recuerda automáticamente:
+
+- Lista de palabras por cada dominio.
+- Color de resaltado de cada sitio.
+- Altura del editor de palabras.
+- Visibilidad del botón flotante.
+
+---
+
+# 📤 Importación y exportación
+
+El panel permite:
+
+- 📥 Importar configuraciones desde un archivo JSON.
+- 📤 Exportar únicamente la configuración del sitio actual.
+- 📦 Exportar todas las configuraciones almacenadas en un único archivo.
+
+Esto facilita crear copias de seguridad o compartir configuraciones entre equipos.
+
+---
+
+# 📄 Sitios compatibles
+
+Actualmente el script está configurado para funcionar en:
+
+- HentaiTK
+- HentaiLA
+
+Es posible ampliar fácilmente la lista añadiendo nuevos dominios en el UserScript.
+
+---
+
+# 📄 Licencia
+
+Este proyecto se distribuye bajo la licencia **MIT**.
+
+Consulta el archivo **LICENSE** para más información.
