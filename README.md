@@ -1,41 +1,42 @@
-# 🖍️ Resaltar Texto Coincidente
+# ✨ Resaltar texto coincidente
+**Última Actualización:** 14 de julio de 2026
 
-**Última Actualización:** 28 de junio de 2026
+Resalta automáticamente palabras o frases específicas en las páginas web mediante un menú flotante moderno. Cada sitio web mantiene su propia lista de palabras y color de resaltado.
 
-![Interfaz Gráfica del Script](GUI.png)
-
-Un script de Tampermonkey que permite resaltar palabras específicas en rojo en el sitio web [hentaitk.net](https://hentaitk.net). Los usuarios pueden gestionar las palabras a resaltar a través de un cuadro de texto interactivo, que guarda las palabras ingresadas para futuras visitas.
+![GUI](GUI.png)
 
 ## Características
 
-- Resalta palabras específicas en el contenido de la página.
-- Administra las palabras a resaltar mediante un botón flotante que muestra un cuadro de texto.
-- Las palabras se ingresan una por línea.
-- Guarda automáticamente las palabras en `localStorage` para persistencia.
-- Excluye etiquetas `<script>` y `<style>` para evitar conflictos.
+- ✨ Resaltado automático de palabras o frases.
+- 🌐 Configuración independiente para cada dominio.
+- 🎨 Color de resaltado totalmente personalizable.
+- 🟣 Colores predefinidos para elegir rápidamente.
+- 📥 Importación de configuraciones desde archivos JSON.
+- 📤 Exportación de la configuración del sitio actual.
+- 📦 Exportación de todas las configuraciones guardadas.
+- 💾 Guardado automático por sitio.
+- 📏 Área de edición redimensionable y con tamaño persistente.
+- 🖱️ Menú flotante moderno que puede mostrarse u ocultarse desde el menú de Tampermonkey.
+- ⚡ Optimizado para páginas dinámicas mediante `MutationObserver`.
+- 🔄 Reaplica el resaltado al volver a una pestaña en segundo plano.
 
-## 🚀 Instalación
+## Uso
 
-1. Instala la extensión [Tampermonkey](https://www.tampermonkey.net/) para tu navegador.
-2. Abre este script desde GitHub y haz clic en `Raw`.
-3. Tampermonkey lo detectará y ofrecerá instalarlo.
+1. Haz clic en el botón flotante **☰**.
+2. Escribe una palabra o frase por línea.
+3. Selecciona el color del resaltado.
+4. Pulsa **💾 Guardar**.
 
-> También puedes hacer click en [`userscript.js`](https://github.com/wernser412/Resaltar-texto-coincidente/raw/refs/heads/main/Resaltar%20texto%20coincidente.user.js) para instalar automaticamente en Tampermonkey.
+A partir de ese momento todas las coincidencias aparecerán resaltadas automáticamente en ese sitio web.
 
-## 🛠️ Configuración
+## Compatibilidad
 
-1. Haz clic en el **ícono de Tampermonkey** en tu navegador.
-2. Selecciona **"Configurar palabras resaltadas"**.
-3. Ingresa las palabras que deseas resaltar, una por línea.
-4. Guarda los cambios y recarga la página para aplicar los resaltados.
+Compatible con cualquier navegador que soporte:
 
-## 🎨 ¿Cómo Funciona?
+- Tampermonkey
+- Violentmonkey
+- Greasemonkey
 
-- Resalta las palabras coincidentes en **rojo y negrita**.
-- Guarda las palabras resaltadas en `localStorage` para que se mantengan entre sesiones.
-- Usa `MutationObserver` para detectar cambios dinámicos en la página.
+## Licencia
 
-## 📜 Licencia
-
-Este script está disponible bajo la **Licencia MIT**. ¡Úsalo y modifícalo libremente!
-
+MIT
