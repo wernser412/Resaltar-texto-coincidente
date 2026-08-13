@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Resaltar texto coincidente
 // @namespace    http://tampermonkey.net/
-// @version      2026.07.14
+// @version      2026.08.12
 // @description  Resalta palabras con menú flotante moderno
 // @author       wernser412
 // @icon         https://raw.githubusercontent.com/wernser412/Resaltar-texto-coincidente/refs/heads/main/ICONO.png
@@ -66,13 +66,23 @@
         return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 
+    // NUEVO: convierte una palabra/frase en un fragmento de patrón donde
+    // cualquier espacio (o secuencia de espacios/tabs/saltos de línea) se
+    // trata como "uno o más espacios en blanco" en vez de un espacio literal.
+    // Esto es necesario porque muchos sitios insertan espacios dobles,
+    // saltos de línea o indentación entre palabras que en pantalla se ven
+    // pegadas con un solo espacio (p. ej. "Tsuma  Tsuma" con doble espacio).
+    function palabraAFragmentoPatron(palabra) {
+        return escapeRegExp(palabra).replace(/\s+/g, '\\s+');
+    }
+
     function construirRegex() {
         if (!config.palabras.length) return null;
 
         const patron = config.palabras
             .slice()
             .sort((a, b) => b.length - a.length)
-            .map(escapeRegExp)
+            .map(palabraAFragmentoPatron)
             .join('|');
 
         return new RegExp(`(?<![\\p{L}\\p{N}])(${patron})(?![\\p{L}\\p{N}])`, 'giu');
@@ -82,53 +92,114 @@
         return !!node.parentNode?.closest?.('.rh-ui');
     }
 
-    /* ============================ RESALTAR ============================ */
+    /* ============================ RESALTAR (cross-node) ============================ */
 
-    function resaltarTexto(node) {
-        if (node.nodeType !== 3 || !regexActual) return;
-        if (!node.parentNode) return;
-        if (node.parentNode.closest('span[data-resaltado]')) return;
-        if (node.parentNode.isContentEditable) return;
-        if (perteneceAlPanel(node)) return;
+    // A diferencia de la versión anterior (que solo buscaba coincidencias
+    // dentro de un mismo nodo de texto), esta versión junta todo el texto
+    // "visible" de un contenedor en una sola cadena, busca ahí las
+    // coincidencias, y luego envuelve el resultado usando splitText/Range
+    // aunque la coincidencia esté repartida entre varios nodos de texto
+    // (p. ej. cuando el sitio mete un <span>, un <br> o comentarios HTML
+    // entre dos palabras que en pantalla se ven pegadas). Esto es lo que
+    // fallaba en hentaila.com con frases de varias palabras.
 
-        const texto = node.nodeValue;
-        if (!texto || !texto.trim()) return;
-
-        regexActual.lastIndex = 0;
-        if (!regexActual.test(texto)) return;
-
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = texto.replace(
-            regexActual,
-            `<span class="rh-highlight" data-resaltado="true">$1</span>`
-        );
-
-        const fragment = document.createDocumentFragment();
-        while (tempDiv.firstChild) fragment.appendChild(tempDiv.firstChild);
-
-        if (!node.parentNode) return; // pudo desconectarse mientras tanto
-        node.parentNode.replaceChild(fragment, node);
+    function nodoElegible(node) {
+        const p = node.parentNode;
+        if (!p) return false;
+        if (EXCLUDED_TAGS.has(p.nodeName)) return false;
+        if (p.closest('span[data-resaltado]')) return false;
+        if (p.isContentEditable) return false;
+        if (perteneceAlPanel(node)) return false;
+        if (p.closest?.('.rh-ui')) return false;
+        return true;
     }
 
-    function recorrerNodos(node) {
-        if (node.nodeType === 3) {
-            resaltarTexto(node);
-        } else if (node.nodeType === 1 && !EXCLUDED_TAGS.has(node.nodeName)) {
-            if (node.classList?.contains('rh-ui')) return;
-            node.childNodes.forEach(recorrerNodos);
+    function resaltarEnContenedor(root) {
+        if (!regexActual) return;
+        if (root.nodeType === 3) root = root.parentNode; // por si nos pasan un nodo de texto
+        if (!root || root.nodeType !== 1) return;
+        if (EXCLUDED_TAGS.has(root.nodeName)) return;
+        if (root.classList?.contains('rh-ui')) return;
+        if (root.closest?.('.rh-ui')) return;
+
+        const nodos = [];
+        let texto = '';
+
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+            acceptNode(node) {
+                if (!nodoElegible(node)) return NodeFilter.FILTER_REJECT;
+                return NodeFilter.FILTER_ACCEPT;
+            }
+        });
+
+        // Si el propio root es un nodo de texto elegible (el TreeWalker no lo
+        // incluye a menos que se lo pasemos como raíz de un fragmento), lo
+        // agregamos manualmente cuando corresponda.
+        let n;
+        while ((n = walker.nextNode())) {
+            if (!n.nodeValue) continue;
+            nodos.push({ node: n, start: texto.length, end: texto.length + n.nodeValue.length });
+            texto += n.nodeValue;
+        }
+
+        if (!texto.trim()) return;
+
+        regexActual.lastIndex = 0;
+        const matches = [];
+        let m;
+        while ((m = regexActual.exec(texto))) {
+            matches.push({ start: m.index, end: m.index + m[0].length });
+            if (m[0].length === 0) regexActual.lastIndex++; // seguridad anti bucle infinito
+        }
+        if (!matches.length) return;
+
+        // Se procesa en orden inverso (de la última coincidencia a la
+        // primera, y dentro de cada una de los nodos afectados al revés)
+        // para que los splitText no invaliden los índices ya calculados.
+        for (let i = matches.length - 1; i >= 0; i--) {
+            const { start, end } = matches[i];
+
+            for (let j = nodos.length - 1; j >= 0; j--) {
+                const entry = nodos[j];
+                const segStart = Math.max(start, entry.start);
+                const segEnd = Math.min(end, entry.end);
+                if (segStart >= segEnd) continue;
+                if (!entry.node.parentNode) continue; // ya no está en el DOM
+
+                const localStart = segStart - entry.start;
+                const localEnd = segEnd - entry.start;
+
+                let nodoAResaltar = entry.node;
+                if (localEnd < nodoAResaltar.nodeValue.length) {
+                    nodoAResaltar.splitText(localEnd);
+                }
+                if (localStart > 0) {
+                    nodoAResaltar = nodoAResaltar.splitText(localStart);
+                }
+
+                if (!nodoAResaltar.parentNode) continue;
+                const span = document.createElement('span');
+                span.className = 'rh-highlight';
+                span.dataset.resaltado = 'true';
+                nodoAResaltar.parentNode.insertBefore(span, nodoAResaltar);
+                span.appendChild(nodoAResaltar);
+            }
         }
     }
 
     function limpiarResaltados() {
         document.querySelectorAll('span[data-resaltado]').forEach(span => {
             span.replaceWith(document.createTextNode(span.textContent));
+            // normaliza para que los textos vecinos se fusionen en un solo
+            // nodo y no queden fragmentados de resaltados anteriores.
         });
+        document.body.normalize();
     }
 
     function refresh() {
         regexActual = construirRegex();
         limpiarResaltados();
-        if (regexActual) recorrerNodos(document.body);
+        if (regexActual) resaltarEnContenedor(document.body);
     }
 
     /* ============================ OBSERVER (con debounce) ============================ */
@@ -141,7 +212,7 @@
         debounceTimer = null;
         const nodes = pendingNodes;
         pendingNodes = [];
-        nodes.forEach(recorrerNodos);
+        nodes.forEach(n => resaltarEnContenedor(n.nodeType === 3 ? n.parentNode : n));
     }
 
     const observer = new MutationObserver(muts => {
@@ -159,7 +230,7 @@
     document.addEventListener('visibilitychange', () => {
         if (document.hidden || !regexActual) return;
         if (debounceTimer) procesarPendientes();
-        recorrerNodos(document.body);
+        resaltarEnContenedor(document.body);
     });
 
     /* ============================ OVERLAY ============================ */
@@ -439,18 +510,18 @@
             alturaPreviaAExpandir = getComputedStyle(textarea).height;
             textarea.style.height = '70vh';
         } else {
-            textarea.style.height = alturaPreviaAExpandir || '260px';
+            textarea.style.height = alturaPreviaAExpandir || '140px';
         }
 
-        expandirBtn.textContent = textareaExpandida ? '🗗 Reducir' : '🗖 Expandir';
+        expandirBtn.textContent = textareaExpandida ? '🗗' : '🗖';
     }
 
     function etiqueta(texto) {
         const l = document.createElement('label');
         l.textContent = texto;
         l.style.cssText = `
-            color:#8b96ad; font-size:11.5px; font-weight:700;
-            text-transform:uppercase; letter-spacing:.06em;
+            color:#8b96ad; font-size:9.5px; font-weight:700;
+            text-transform:uppercase; letter-spacing:.05em;
         `;
         return l;
     }
@@ -461,10 +532,10 @@
         btn.textContent = text;
         btn.onclick = action;
         btn.style.cssText = `
-            width:100%; border:none; border-radius:10px; padding:9px 12px;
+            width:100%; border:none; border-radius:8px; padding:6px 8px;
             background:${gradient}; color:white;
-            font:600 13px system-ui, -apple-system, sans-serif; cursor:pointer;
-            letter-spacing:.01em;
+            font:600 11px system-ui, -apple-system, sans-serif; cursor:pointer;
+            letter-spacing:.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
             transition:transform .15s ease, box-shadow .15s ease, filter .15s ease;
             box-shadow:0 2px 6px rgba(0,0,0,.3);
         `;
@@ -488,18 +559,18 @@
         rhPanel = document.createElement('div');
         rhPanel.className = 'rh-ui';
         rhPanel.style.cssText = `
-            position:fixed; right:20px; bottom:76px;
-            width:min(560px, 95vw);
-            max-height:90vh;
+            position:fixed; right:16px; bottom:64px;
+            width:min(330px, 92vw);
+            max-height:85vh;
             overflow-y:auto;
             background:linear-gradient(165deg, rgba(24,29,48,.97), rgba(10,13,24,.97));
             backdrop-filter:blur(14px);
             border:1px solid rgba(255,255,255,.08);
-            border-radius:22px;
-            padding:22px;
-            display:flex; flex-direction:column; gap:11px;
+            border-radius:14px;
+            padding:12px;
+            display:flex; flex-direction:column; gap:7px;
             z-index:999999;
-            box-shadow:0 24px 60px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.02) inset;
+            box-shadow:0 18px 44px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.02) inset;
             font-family:system-ui, -apple-system, sans-serif;
             opacity:0; visibility:hidden; pointer-events:none;
             transform:translateY(14px) scale(.96);
@@ -509,29 +580,32 @@
 
         /* HEADER */
         const header = document.createElement('div');
-        header.style.cssText = 'display:flex; align-items:center; justify-content:space-between; margin-bottom:2px;';
+        header.style.cssText = 'display:flex; align-items:center; justify-content:space-between;';
 
         const tituloWrap = document.createElement('div');
-        tituloWrap.style.cssText = 'display:flex; align-items:center; gap:10px;';
+        tituloWrap.style.cssText = 'display:flex; align-items:center; gap:7px; min-width:0;';
 
         const iconoTitulo = document.createElement('div');
         iconoTitulo.textContent = '✨';
-        iconoTitulo.style.cssText = 'font-size:20px;';
+        iconoTitulo.style.cssText = 'font-size:14px; flex-shrink:0;';
         tituloWrap.appendChild(iconoTitulo);
 
         const tituloTextos = document.createElement('div');
+        tituloTextos.style.cssText = 'min-width:0; overflow:hidden;';
 
         const titulo = document.createElement('div');
         titulo.textContent = 'Resaltador';
         titulo.style.cssText = `
-            color:white; font-size:19px; font-weight:750; letter-spacing:-.01em;
+            color:white; font-size:13.5px; font-weight:700; letter-spacing:-.01em;
+            line-height:1.2;
         `;
         tituloTextos.appendChild(titulo);
 
         const subtitulo = document.createElement('div');
         subtitulo.textContent = dominio;
         subtitulo.style.cssText = `
-            color:#64748b; font-size:12px; font-family:monospace;
+            color:#64748b; font-size:10px; font-family:monospace;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
         `;
         tituloTextos.appendChild(subtitulo);
 
@@ -544,8 +618,8 @@
         cerrarBtn.title = 'Cerrar';
         cerrarBtn.style.cssText = `
             background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08);
-            color:#94a3b8; font-size:15px; width:30px; height:30px;
-            cursor:pointer; line-height:1; border-radius:9px;
+            color:#94a3b8; font-size:12px; width:22px; height:22px; flex-shrink:0;
+            cursor:pointer; line-height:1; border-radius:7px;
             display:flex; align-items:center; justify-content:center;
             transition:background .15s ease, color .15s ease, transform .15s ease;
         `;
@@ -571,11 +645,12 @@
 
         expandirBtn = document.createElement('button');
         expandirBtn.type = 'button';
-        expandirBtn.textContent = '🗖 Expandir';
+        expandirBtn.textContent = '🗖';
+        expandirBtn.title = 'Expandir/Reducir';
         expandirBtn.style.cssText = `
-            font-size:11.5px; font-weight:600; padding:6px 11px; border-radius:8px;
+            font-size:11px; font-weight:600; padding:3px 7px; border-radius:6px;
             border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.04);
-            color:#cbd5e1; cursor:pointer; transition:background .15s ease;
+            color:#cbd5e1; cursor:pointer; transition:background .15s ease; flex-shrink:0;
         `;
         expandirBtn.onmouseenter = () => { expandirBtn.style.background = 'rgba(255,255,255,.1)'; };
         expandirBtn.onmouseleave = () => { expandirBtn.style.background = 'rgba(255,255,255,.04)'; };
@@ -588,13 +663,15 @@
         textarea.placeholder = 'palabra1\npalabra2\npalabra3...';
         textarea.value = config.palabras.join('\n');
         textarea.spellcheck = false;
+        textarea.wrap = 'off';
         textarea.style.cssText = `
-            width:100%; height:${alturaGuardada || '260px'};
+            width:100%; height:${alturaGuardada || '140px'};
             background:rgba(0,0,0,.35); color:#e5e9f0;
-            border:1px solid rgba(255,255,255,.09); border-radius:14px;
-            padding:14px; resize:vertical;
-            font-size:14.5px; line-height:1.65; font-family:'SFMono-Regular', Menlo, monospace;
+            border:1px solid rgba(255,255,255,.09); border-radius:9px;
+            padding:8px 9px; resize:vertical;
+            font-size:12.5px; line-height:1.5; font-family:'SFMono-Regular', Menlo, monospace;
             box-sizing:border-box; outline:none;
+            white-space:pre; overflow-x:auto;
             transition:border-color .15s ease, box-shadow .15s ease;
         `;
         textarea.onfocus = () => {
@@ -619,23 +696,23 @@
         }).observe(textarea);
 
         contador = document.createElement('div');
-        contador.style.cssText = 'color:#64748b; font-size:12px; margin-top:-6px;';
+        contador.style.cssText = 'color:#64748b; font-size:10px; margin-top:-3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;';
         rhPanel.appendChild(contador);
         updateWordCount();
 
         /* SEPARADOR */
         const separador1 = document.createElement('div');
-        separador1.style.cssText = 'height:1px; background:rgba(255,255,255,.08); margin:2px 0;';
+        separador1.style.cssText = 'height:1px; background:rgba(255,255,255,.08); margin:1px 0;';
         rhPanel.appendChild(separador1);
 
         /* BOTONES */
         const buttonContainer = document.createElement('div');
-        buttonContainer.style.cssText = 'display:flex; flex-direction:column; gap:8px;';
+        buttonContainer.style.cssText = 'display:flex; flex-direction:column; gap:6px;';
         rhPanel.appendChild(buttonContainer);
 
         /* Fila: Guardar + botón de color (con popover) */
         const filaGuardarColor = document.createElement('div');
-        filaGuardarColor.style.cssText = 'display:flex; gap:8px;';
+        filaGuardarColor.style.cssText = 'display:flex; gap:6px;';
         buttonContainer.appendChild(filaGuardarColor);
 
         const wrapGuardar = document.createElement('div');
@@ -651,11 +728,11 @@
         colorBtn.type = 'button';
         colorBtn.title = 'Color de resaltado';
         colorBtn.style.cssText = `
-            width:100%; height:100%; min-height:36px; box-sizing:border-box;
-            border-radius:10px; cursor:pointer;
+            width:100%; height:100%; min-height:26px; min-width:0; box-sizing:border-box;
+            border-radius:8px; cursor:pointer; overflow:hidden;
             border:1px solid rgba(255,255,255,.14);
-            display:flex; align-items:center; justify-content:center; gap:8px;
-            font:600 12.5px system-ui, -apple-system, sans-serif; color:white;
+            display:flex; align-items:center; justify-content:center; gap:4px;
+            font:600 10px system-ui, -apple-system, sans-serif; color:white;
             transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease, filter .15s ease;
             box-shadow:0 2px 6px rgba(0,0,0,.3);
         `;
@@ -674,23 +751,23 @@
 
         colorBtnDot = document.createElement('span');
         colorBtnDot.style.cssText = `
-            width:15px; height:15px; border-radius:50%; flex-shrink:0;
-            box-shadow:0 0 0 2px rgba(255,255,255,.25), 0 0 8px 1px currentColor;
+            width:10px; height:10px; border-radius:50%; flex-shrink:0;
+            box-shadow:0 0 0 2px rgba(255,255,255,.25), 0 0 6px 1px currentColor;
         `;
         colorBtn.appendChild(colorBtnDot);
 
         colorBtnLabel = document.createElement('span');
-        colorBtnLabel.style.cssText = 'font-family:monospace; letter-spacing:.02em;';
+        colorBtnLabel.style.cssText = 'font-family:monospace; letter-spacing:.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;';
         colorBtn.appendChild(colorBtnLabel);
 
         /* Popover flotante con el selector real y los presets */
         colorPopover = document.createElement('div');
         colorPopover.className = 'rh-ui';
         colorPopover.style.cssText = `
-            position:absolute; bottom:calc(100% + 10px); right:0; width:224px;
+            position:absolute; bottom:calc(100% + 8px); right:0; width:176px;
             background:linear-gradient(165deg, rgba(30,35,56,.98), rgba(12,15,26,.98));
-            border:1px solid rgba(255,255,255,.1); border-radius:16px; padding:14px;
-            display:flex; flex-direction:column; gap:11px;
+            border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:10px;
+            display:flex; flex-direction:column; gap:8px;
             box-shadow:0 16px 40px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.03) inset;
             opacity:0; visibility:hidden; pointer-events:none;
             transform:translateY(8px) scale(.96);
@@ -706,8 +783,8 @@
 
         const swatchWrap = document.createElement('div');
         swatchWrap.style.cssText = `
-            position:relative; width:38px; height:38px; flex-shrink:0;
-            border-radius:10px; cursor:pointer;
+            position:relative; width:28px; height:28px; flex-shrink:0;
+            border-radius:8px; cursor:pointer;
         `;
 
         swatch = document.createElement('div');
@@ -735,14 +812,14 @@
 
         hexLabel = document.createElement('div');
         hexLabel.style.cssText = `
-            color:#cbd5e1; font-size:13px; font-family:monospace; letter-spacing:.03em;
+            color:#cbd5e1; font-size:11px; font-family:monospace; letter-spacing:.03em;
         `;
         filaSwatchHex.appendChild(hexLabel);
 
         colorPopover.appendChild(filaSwatchHex);
 
         presetsWrap = document.createElement('div');
-        presetsWrap.style.cssText = 'display:flex; gap:8px; flex-wrap:wrap;';
+        presetsWrap.style.cssText = 'display:flex; gap:6px; flex-wrap:wrap;';
 
         COLORES_PRESET.forEach(c => {
             const chip = document.createElement('button');
@@ -750,7 +827,7 @@
             chip.dataset.color = c;
             chip.title = c;
             chip.style.cssText = `
-                width:22px; height:22px; border-radius:50%; background:${c};
+                width:17px; height:17px; border-radius:50%; background:${c};
                 border:2px solid transparent; cursor:pointer; padding:0;
                 transition:transform .12s ease, border-color .12s ease;
             `;
@@ -768,26 +845,14 @@
         actualizarSwatch();
         actualizarSeleccionPreset();
 
-        const filaSecundaria = document.createElement('div');
-        filaSecundaria.style.cssText = 'display:flex; gap:8px;';
-        buttonContainer.appendChild(filaSecundaria);
+        const grillaSecundaria = document.createElement('div');
+        grillaSecundaria.style.cssText = 'display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:6px;';
+        buttonContainer.appendChild(grillaSecundaria);
 
-        const wrapImport = document.createElement('div');
-        wrapImport.style.cssText = 'flex:1;';
-        crearBoton(wrapImport, '📥 Importar', 'linear-gradient(135deg,#60a5fa,#2563eb)', importar);
-        filaSecundaria.appendChild(wrapImport);
-
-        const wrapExportSitio = document.createElement('div');
-        wrapExportSitio.style.cssText = 'flex:1;';
-        crearBoton(wrapExportSitio, '📤 Exportar sitio', 'linear-gradient(135deg,#c084fc,#9333ea)', exportarSitio);
-        filaSecundaria.appendChild(wrapExportSitio);
-
-        const wrapExportTodo = document.createElement('div');
-        wrapExportTodo.style.cssText = 'flex:1;';
-        crearBoton(wrapExportTodo, '📦 Exportar todo', 'linear-gradient(135deg,#a78bfa,#6d28d9)', exportarTodo);
-        filaSecundaria.appendChild(wrapExportTodo);
-
-        crearBoton(buttonContainer, '🗑️ Limpiar lista', 'linear-gradient(135deg,#fb7185,#e11d48)', limpiarLista);
+        crearBoton(grillaSecundaria, '📥 Importar', 'linear-gradient(135deg,#60a5fa,#2563eb)', importar);
+        crearBoton(grillaSecundaria, '📤 Sitio', 'linear-gradient(135deg,#c084fc,#9333ea)', exportarSitio);
+        crearBoton(grillaSecundaria, '📦 Todo', 'linear-gradient(135deg,#a78bfa,#6d28d9)', exportarTodo);
+        crearBoton(grillaSecundaria, '🗑️ Limpiar', 'linear-gradient(135deg,#fb7185,#e11d48)', limpiarLista);
 
         /* FAB */
         rhFab = document.createElement('button');
