@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Resaltar texto coincidente
 // @namespace    http://tampermonkey.net/
-// @version      2026.08.12
-// @description  Resalta palabras con menú flotante moderno
+// @version      2026.08.14
+// @description  Resalta palabras con menú flotante moderno (lista universal, aplica en todos los sitios)
 // @author       wernser412
 // @icon         https://raw.githubusercontent.com/wernser412/Resaltar-texto-coincidente/refs/heads/main/ICONO.png
 // @downloadURL  https://github.com/wernser412/Resaltar-texto-coincidente/raw/refs/heads/main/Resaltar%20texto%20coincidente.user.js
@@ -22,9 +22,10 @@
 
     /* ============================ CONFIG ============================ */
 
-    const dominio = location.hostname;
+    // Ya no hay listas por sitio: una sola lista universal que aplica
+    // igual en todos los dominios donde corre el script (@match arriba).
     const MENU_VISIBLE_KEY = 'rh_menu_visible';
-    const STORAGE_KEY = 'resaltarPorSitio';
+    const STORAGE_KEY = 'resaltarUniversal';
     const EXCLUDED_TAGS = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT', 'CODE', 'PRE']);
 
     function normalizarConfig(obj) {
@@ -39,23 +40,22 @@
         return { palabras, color };
     }
 
-    async function obtenerBase() {
+    async function obtenerConfig() {
         try {
             const data = JSON.parse(await GM_getValue(STORAGE_KEY, '{}'));
-            return (data && typeof data === 'object' && !Array.isArray(data)) ? data : {};
+            return normalizarConfig(data);
         } catch {
-            return {};
+            return normalizarConfig(null);
         }
     }
 
-    async function guardarBase(base) {
-        await GM_setValue(STORAGE_KEY, JSON.stringify(base));
+    async function guardarConfig(cfg) {
+        await GM_setValue(STORAGE_KEY, JSON.stringify(cfg));
     }
 
     const TEXTAREA_HEIGHT_KEY = 'rh_textarea_height';
 
-    let base = await obtenerBase();
-    let config = normalizarConfig(base[dominio]);
+    let config = await obtenerConfig();
     let alturaGuardada = await GM_getValue(TEXTAREA_HEIGHT_KEY, null);
 
     let regexActual = null;
@@ -66,12 +66,11 @@
         return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 
-    // NUEVO: convierte una palabra/frase en un fragmento de patrón donde
-    // cualquier espacio (o secuencia de espacios/tabs/saltos de línea) se
-    // trata como "uno o más espacios en blanco" en vez de un espacio literal.
-    // Esto es necesario porque muchos sitios insertan espacios dobles,
-    // saltos de línea o indentación entre palabras que en pantalla se ven
-    // pegadas con un solo espacio (p. ej. "Tsuma  Tsuma" con doble espacio).
+    // Convierte una palabra/frase en un fragmento de patrón donde cualquier
+    // espacio (o secuencia de espacios/tabs/saltos de línea) se trata como
+    // "uno o más espacios en blanco" en vez de un espacio literal, porque
+    // muchos sitios insertan espacios dobles o saltos de línea entre
+    // palabras que en pantalla se ven pegadas con un solo espacio.
     function palabraAFragmentoPatron(palabra) {
         return escapeRegExp(palabra).replace(/\s+/g, '\\s+');
     }
@@ -94,14 +93,11 @@
 
     /* ============================ RESALTAR (cross-node) ============================ */
 
-    // A diferencia de la versión anterior (que solo buscaba coincidencias
-    // dentro de un mismo nodo de texto), esta versión junta todo el texto
-    // "visible" de un contenedor en una sola cadena, busca ahí las
-    // coincidencias, y luego envuelve el resultado usando splitText/Range
-    // aunque la coincidencia esté repartida entre varios nodos de texto
-    // (p. ej. cuando el sitio mete un <span>, un <br> o comentarios HTML
-    // entre dos palabras que en pantalla se ven pegadas). Esto es lo que
-    // fallaba en hentaila.com con frases de varias palabras.
+    // Junta todo el texto "visible" de un contenedor en una sola cadena,
+    // busca ahí las coincidencias, y luego envuelve el resultado usando
+    // splitText/Range aunque la coincidencia esté repartida entre varios
+    // nodos de texto (p. ej. cuando el sitio mete un <span>, un <br> o
+    // comentarios HTML entre dos palabras que en pantalla se ven pegadas).
 
     function nodoElegible(node) {
         const p = node.parentNode;
@@ -132,9 +128,6 @@
             }
         });
 
-        // Si el propio root es un nodo de texto elegible (el TreeWalker no lo
-        // incluye a menos que se lo pasemos como raíz de un fragmento), lo
-        // agregamos manualmente cuando corresponda.
         let n;
         while ((n = walker.nextNode())) {
             if (!n.nodeValue) continue;
@@ -285,16 +278,14 @@
     function updateWordCount() {
         if (!contador) return;
         const n = palabrasDesdeTextarea().length;
-        contador.textContent = `${n} palabra${n === 1 ? '' : 's'} · ${dominio}`;
+        contador.textContent = `${n} palabra${n === 1 ? '' : 's'} · todos los sitios`;
     }
 
     async function guardar() {
         config.palabras = palabrasDesdeTextarea();
         config.color = colorInput.value;
 
-        base = await obtenerBase();
-        base[dominio] = config;
-        await guardarBase(base);
+        await guardarConfig(config);
 
         updateHighlightStyle();
         refresh();
@@ -306,39 +297,24 @@
 
     function limpiarLista() {
         if (!config.palabras.length && !textarea.value.trim()) return;
-        if (!confirm(`¿Vaciar la lista de palabras para ${dominio}?`)) return;
+        if (!confirm('¿Vaciar la lista de palabras?')) return;
 
         textarea.value = '';
         updateWordCount();
         showOverlay('🗑️ Lista vaciada (pulsa Guardar para confirmar)');
     }
 
-    async function exportarSitio() {
-        const datos = { [dominio]: config };
-        const blob = new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' });
+    async function exportarLista() {
+        const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
         const fecha = new Date().toISOString().slice(0, 10);
 
         GM_download({
             url: URL.createObjectURL(blob),
-            name: `resaltar-${dominio}-${fecha}.json`,
+            name: `resaltar-universal-${fecha}.json`,
             saveAs: true
         });
 
-        showOverlay(`📤 Exportado (solo ${dominio})`);
-    }
-
-    async function exportarTodo() {
-        const datos = await obtenerBase();
-        const blob = new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' });
-        const fecha = new Date().toISOString().slice(0, 10);
-
-        GM_download({
-            url: URL.createObjectURL(blob),
-            name: `resaltar-global-${fecha}.json`,
-            saveAs: true
-        });
-
-        showOverlay('📦 Exportado (todos los sitios)');
+        showOverlay('📤 Exportado');
     }
 
     function importar() {
@@ -353,24 +329,16 @@
             if (!file) { input.remove(); return; }
 
             try {
-                const nuevos = JSON.parse(await file.text());
+                const nuevo = JSON.parse(await file.text());
 
-                if (typeof nuevos !== 'object' || nuevos === null || Array.isArray(nuevos)) {
-                    alert('Archivo inválido: se esperaba un objeto { "dominio": { palabras, color } }.');
+                if (typeof nuevo !== 'object' || nuevo === null || Array.isArray(nuevo)) {
+                    alert('Archivo inválido: se esperaba un objeto { palabras, color }.');
                     input.remove();
                     return;
                 }
 
-                const actuales = await obtenerBase();
-                const fusionados = { ...actuales };
-                for (const [dom, val] of Object.entries(nuevos)) {
-                    fusionados[dom] = normalizarConfig(val);
-                }
-
-                await guardarBase(fusionados);
-
-                base = fusionados;
-                config = normalizarConfig(base[dominio]);
+                config = normalizarConfig(nuevo);
+                await guardarConfig(config);
 
                 textarea.value = config.palabras.join('\n');
                 colorInput.value = config.color;
@@ -602,7 +570,7 @@
         tituloTextos.appendChild(titulo);
 
         const subtitulo = document.createElement('div');
-        subtitulo.textContent = dominio;
+        subtitulo.textContent = 'Todos los sitios';
         subtitulo.style.cssText = `
             color:#64748b; font-size:10px; font-family:monospace;
             white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
@@ -850,8 +818,7 @@
         buttonContainer.appendChild(grillaSecundaria);
 
         crearBoton(grillaSecundaria, '📥 Importar', 'linear-gradient(135deg,#60a5fa,#2563eb)', importar);
-        crearBoton(grillaSecundaria, '📤 Sitio', 'linear-gradient(135deg,#c084fc,#9333ea)', exportarSitio);
-        crearBoton(grillaSecundaria, '📦 Todo', 'linear-gradient(135deg,#a78bfa,#6d28d9)', exportarTodo);
+        crearBoton(grillaSecundaria, '📤 Exportar', 'linear-gradient(135deg,#a78bfa,#6d28d9)', exportarLista);
         crearBoton(grillaSecundaria, '🗑️ Limpiar', 'linear-gradient(135deg,#fb7185,#e11d48)', limpiarLista);
 
         /* FAB */
