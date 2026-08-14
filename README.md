@@ -1,6 +1,6 @@
 # Resaltar texto coincidente
 
-**Última Actualización:** 12 de agosto de 2026
+**Última Actualización:** 14 de agosto de 2026
 
 Resalta automáticamente palabras o expresiones en cualquier página compatible mediante listas personalizadas, con un menú flotante moderno, selección de color e importación/exportación de configuraciones.
 
